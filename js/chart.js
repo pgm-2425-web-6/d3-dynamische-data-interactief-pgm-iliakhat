@@ -1,13 +1,14 @@
 const width = 928;
 const height = 500;
 
-const n = 10; // Number of series
-const m = 500; // Number of samples per series
-const k = 50; // Number of bumps per series
+const categories = ["Cars", "Bikes", "Scooters", "Pedestrians"]; // Traffic accident categories
+const n = categories.length; // Number of categories
+const m = 500; // Number of time intervals (e.g., days)
+const k = 30; // Number of bumps per series
 
-const x = d3.scaleLinear([0, m - 1], [0, width]);
-const y = d3.scaleLinear([0, 1], [height, 0]);
-const z = d3.interpolateCool;
+const x = d3.scaleLinear([0, m - 1], [0, width]); // Time scale
+const y = d3.scaleLinear([0, 1], [height, 0]); // Accident count scale
+const z = d3.scaleOrdinal(d3.schemeTableau10); // Color palette for categories
 
 const area = d3.area()
     .x((d, i) => x(i))
@@ -18,6 +19,20 @@ const stack = d3.stack()
     .keys(d3.range(n))
     .offset(d3.stackOffsetWiggle)
     .order(d3.stackOrderNone);
+
+function bumps(n, k) {
+    const values = Array.from({ length: n }, () => 0);
+    for (let i = 0; i < k; i++) {
+        const x = (1 / (0.1 + Math.random())) * (Math.random() < 0.5 ? -1 : 1);
+        const w = 10 / (0.1 + Math.random());
+        const center = Math.random() * n;
+        for (let j = 0; j < n; j++) {
+            const dist = (j - center) / w;
+            values[j] += Math.exp(-dist * dist);
+        }
+    }
+    return values.map(v => Math.max(0, v));
+}
 
 function randomize() {
     const layers = stack(d3.transpose(Array.from({ length: n }, () => bumps(m, k))));
@@ -39,15 +54,33 @@ const path = svg.selectAll("path")
     .data(randomize())
     .join("path")
     .attr("d", area)
-    .attr("fill", () => z(Math.random()));
+    .attr("fill", (d, i) => z(categories[i])); // Assign category colors
+
+// Add legend in the bottom-left corner
+const legend = svg.selectAll(".legend")
+    .data(categories)
+    .enter()
+    .append("g")
+    .attr("transform", (d, i) => `translate(${20}, ${height - (n * 20) - 20 + i * 20})`);
+
+legend.append("rect")
+    .attr("width", 18)
+    .attr("height", 18)
+    .attr("fill", (d, i) => z(categories[i]));
+
+legend.append("text")
+    .attr("x", 24)
+    .attr("y", 9)
+    .attr("dy", "0.35em")
+    .text(d => d);
 
 async function update() {
     while (true) {
         await path
             .data(randomize())
             .transition()
-            .delay(1000)
-            .duration(1500)
+
+            .duration(1000)
             .attr("d", area)
             .end();
     }
